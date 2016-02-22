@@ -11,8 +11,9 @@ import (
 
 type LogsPump struct {
 	sync.Mutex
-	pumps  map[string]*containerPump
-	client *docker.Client
+	pumps   map[string]*containerPump
+	client  *docker.Client
+	storage *Storage
 }
 
 func (p *LogsPump) Run() error {
@@ -60,14 +61,15 @@ func (p *LogsPump) createContainerPump(container *Container, stdout, stderr io.R
 
 	id := container.Id()
 	if _, ok := p.pumps[id]; !ok {
-		p.pumps[id] = newContainerPump(container, stdout, stderr)
+		p.pumps[id] = newContainerPump(p.storage, container, stdout, stderr)
 	}
 }
 
 func (p *LogsPump) removeContainerPump(id string) {
 	p.Lock()
 	defer p.Unlock()
-	if _, ok := p.pumps[id]; ok {
+	if pump, ok := p.pumps[id]; ok {
+		pump.Stop()
 		delete(p.pumps, id)
 	}
 }
@@ -116,9 +118,10 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, backlog bool) {
 	}()
 }
 
-func NewLogsPump() *LogsPump {
+func NewLogsPump(storagePath string) *LogsPump {
 	pump := &LogsPump{
 		pumps: make(map[string]*containerPump),
+		storage: NewStorage(storagePath)
 	}
 	return pump
 }

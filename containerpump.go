@@ -18,16 +18,24 @@ type Message struct {
 
 type containerPump struct {
 	sync.Mutex
+	wg        *sync.WaitGroup
+	run       bool
+	storage   *Storage
 	container *Container
 }
 
-func newContainerPump(container *Container, stdout, stderr io.Reader) *containerPump {
+func newContainerPump(storage *Storage, container *Container, stdout, stderr io.Reader) *containerPump {
 	cp := &containerPump{
 		container: container,
+		storage:   storage,
+		wg:        &sync.WaitGroup{},
+		run:       true,
 	}
+
 	pump := func(source string, input io.Reader) {
+		cp.wg.Add(1)
 		buf := bufio.NewReader(input)
-		for {
+		for cp.run {
 			line, err := buf.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
@@ -42,6 +50,7 @@ func newContainerPump(container *Container, stdout, stderr io.Reader) *container
 				Source:    source,
 			})
 		}
+		cp.wg.Done()
 	}
 
 	go pump("stdout", stdout)
@@ -49,7 +58,14 @@ func newContainerPump(container *Container, stdout, stderr io.Reader) *container
 	return cp
 }
 
-func (cp *containerPump) persist(msg *Message) {
+func (cp *containerPump) Stop() {
+	cp.Lock()
+	defer cp.Unlock()
+	cp.run = false
+	cp.wg.Wait()
+}
+
+func (cp *containerPump) Persist(msg *Message) {
 	cp.Lock()
 	defer cp.Unlock()
 
