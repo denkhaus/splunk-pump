@@ -33,10 +33,11 @@ func BytesToInt64(buffer []byte) int64 {
 	}
 	return v
 }
+
 func debug(v ...interface{}) {
-	if os.Getenv("DEBUG") != "" {
-		log.Println(v...)
-	}
+	//if os.Getenv("DEBUG") != "" {
+	log.Println(v...)
+	//}
 }
 
 func normalName(name string) string {

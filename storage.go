@@ -20,7 +20,7 @@ func NewStorage(dbPath string) *Storage {
 func (p *Storage) Put(msg Message) error {
 	var key []byte
 	Int64ToBytes(msg.Time.UnixNano(), key)
-	p.store.Put(key, msg)
+	return p.store.Put(key, msg)
 }
 
 func (p *Storage) Open() error {
@@ -33,9 +33,11 @@ func (p *Storage) Open() error {
 	return nil
 }
 
-func (p *Storage) Close() {
+func (p *Storage) Close() error {
 	if p.db != nil {
-		return p.db.Close()
+		err := p.db.Close()
+		p.db = nil
+		return err
 	}
 
 	return nil
