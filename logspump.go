@@ -1,10 +1,8 @@
 package main
 
 import (
-	"io"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/juju/errors"
 	"github.com/sirupsen/logrus"
@@ -12,7 +10,7 @@ import (
 
 type LogsPump struct {
 	sync.Mutex
-	pumps    map[string]*containerPump
+	pumps    map[string]*ContainerPump
 	adapters map[string]Adapter
 	client   *docker.Client
 	storage  *Storage
@@ -32,7 +30,7 @@ func (p *LogsPump) Run() error {
 
 	for _, cont := range containers {
 		p.pumpLogs(&docker.APIEvents{
-			ID:     normalID(cont.ID),
+			ID:     cont.ID,
 			Status: "start",
 		}, "0")
 	}
@@ -44,14 +42,14 @@ func (p *LogsPump) Run() error {
 	}
 
 	for event := range events {
-		id := normalID(event.ID)
-		logger.Infof("received event %s from container %s", event.Status, id)
+		id := event.ID
+		logger.Infof("received %s event for container %s", event.Status, normalID(id))
 
 		switch event.Status {
 		case "start", "restart":
 			go p.pumpLogs(event, "all")
 		case "die":
-			go p.removeContainerPump(id)
+
 		}
 	}
 
@@ -65,14 +63,15 @@ func (p *LogsPump) RegisterAdapter(adapter Adapter) {
 	p.adapters[adapter.String()] = adapter
 }
 
-func (p *LogsPump) createContainerPump(container *Container, stdout, stderr io.Reader) bool {
+func (p *LogsPump) ensureContainerPump(container *Container) *ContainerPump {
 	p.Lock()
 	defer p.Unlock()
 
-	id := container.Id()
-	if _, ok := p.pumps[id]; !ok {
-		logger.Infof("create container pump for id %s", id)
-		pump := NewContainerPump(p.storage, container, stdout, stderr)
+	id := container.ID
+	pump, ok := p.pumps[id]
+	if !ok {
+		logger.Infof("create container pump for id %s", normalID(id))
+		pump = NewContainerPump(p.storage, container)
 
 		adapters := []Adapter{}
 		for _, ad := range p.adapters {
@@ -81,26 +80,22 @@ func (p *LogsPump) createContainerPump(container *Container, stdout, stderr io.R
 
 		pump.AddAdapters(adapters...)
 		p.pumps[id] = pump
-		return true
 	}
-	return false
+	return pump
 }
 
 func (p *LogsPump) removeContainerPump(id string) {
 	p.Lock()
 	defer p.Unlock()
 	if pump, ok := p.pumps[id]; ok {
-		pump.Stop()
-		logger.Infof("remove container pump for id %s", id)
+		pump.Close()
 		delete(p.pumps, id)
+		logger.Infof("removed container pump for id %s", normalID(id))
 	}
 }
 
 func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
-
-	spew.Dump(event.ID)
-
-	id := normalID(event.ID)
+	id := event.ID
 	c, err := p.client.InspectContainer(id)
 	if err != nil {
 		logrus.Fatal(errors.Annotate(err, "inspect container"))
@@ -111,36 +106,31 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 		return
 	}
 
-	outrd, outwr := io.Pipe()
-	errrd, errwr := io.Pipe()
+	pump := p.ensureContainerPump(container)
 
-	if p.createContainerPump(container, outrd, errrd) {
-		logger.Infof("container pump for container %s started", id)
-
-		go func() {
-			err := p.client.Logs(docker.LogsOptions{
-				Container:    id,
-				OutputStream: outwr,
-				ErrorStream:  errwr,
-				Stdout:       true,
-				Stderr:       true,
-				Follow:       true,
-				Tail:         tail,
-			})
-			if err != nil {
-				logger.Errorf("container pump for container %s terminated with error %s", id, err)
-			}
-
-			outwr.Close()
-			errwr.Close()
-			p.removeContainerPump(id)
-		}()
-	}
+	go func() {
+		defer p.removeContainerPump(id)
+		logger.Infof("started log feed for id %s", container.Id())
+		err := p.client.Logs(docker.LogsOptions{
+			Container:    id,
+			OutputStream: pump.outwr,
+			ErrorStream:  pump.errwr,
+			Stdout:       true,
+			Stderr:       true,
+			Follow:       true,
+			Tail:         tail,
+		})
+		if err != nil {
+			logger.Errorf("terminated log feed for id %s with error %s", id, err)
+		}else{
+			logger.Infof("stopped log feed for id %s", container.Id())
+		}		
+	}()
 }
 
 func NewLogsPump(storagePath string) *LogsPump {
 	pump := &LogsPump{
-		pumps:    make(map[string]*containerPump),
+		pumps:    make(map[string]*ContainerPump),
 		adapters: make(map[string]Adapter),
 	}
 	return pump

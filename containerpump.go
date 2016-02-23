@@ -10,32 +10,33 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
-type containerPump struct {
+type ContainerPump struct {
 	sync.Mutex
 	wg        *sync.WaitGroup
 	storage   *Storage
 	container *Container
-	done      chan bool
+	outrd     *io.PipeReader
+	errrd     *io.PipeReader
+	outwr     *io.PipeWriter
+	errwr     *io.PipeWriter
 	adapters  map[Adapter]chan *Message
 }
 
-func (cp *containerPump) Stop() {
+func (cp *ContainerPump) Close() {
+	cp.outwr.Close()
+	cp.errwr.Close()
+	cp.wg.Wait()
+
 	cp.Lock()
 	defer cp.Unlock()
-	logger.Infof("stopping container pump for container %s", cp.container.Id())
-
-	cp.done <- true
-	cp.done <- true
-	cp.wg.Wait()
 	for ad, ch := range cp.adapters {
 		close(ch)
 		delete(cp.adapters, ad)
 	}
-	close(cp.done)
-	logger.Infof("container pump for container %s stopped", cp.container.Id())
+	logger.Infof("closed container pump for container %s", cp.container.Id())
 }
 
-func (cp *containerPump) AddAdapters(adapters ...Adapter) {
+func (cp *ContainerPump) AddAdapters(adapters ...Adapter) {
 	cp.Lock()
 	defer cp.Unlock()
 
@@ -50,44 +51,47 @@ func (cp *containerPump) AddAdapters(adapters ...Adapter) {
 	}
 }
 
-func (cp *containerPump) Send(msg *Message) {
+func (cp *ContainerPump) Send(msg *Message) {
 	cp.Lock()
 	defer cp.Unlock()
 
 	spew.Dump(msg.Data)
-	for _, ch := range cp.adapters {
-		ch <- msg
-	}
+	//for _, ch := range cp.adapters {
+	//	ch <- msg
+	//}
 }
 
-func NewContainerPump(storage *Storage, container *Container, stdout, stderr io.Reader) *containerPump {
-	cp := &containerPump{
+func NewContainerPump(storage *Storage, container *Container) *ContainerPump {
+	cp := &ContainerPump{
 		container: container,
 		storage:   storage,
 		adapters:  make(map[Adapter]chan *Message),
-		done:      make(chan bool, 2),
 		wg:        &sync.WaitGroup{},
 	}
+
+	cp.outrd, cp.outwr = io.Pipe()
+	cp.errrd, cp.errwr = io.Pipe()
 
 	pump := func(source string, input io.Reader) {
 		logger.Infof("start container pump for source %s[%s]", source, container.Id())
 
 		cp.wg.Add(1)
-		buf := bufio.NewReader(input)
-		for {
-			select {
-			case <-cp.done:
-				break
-			default:
-			}
+		defer func() {
+			logger.Infof("stopped container pump for source %s[%s]", source, container.Id())
+			cp.wg.Done()
+		}()
 
+		buf := bufio.NewReader(input)
+
+		for {
 			line, err := buf.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
-					debug("pump:", container.Id(), source+":", err)
+					logger.Errorf("readstring:", container.Id(), source+":", err)
 				}
 				return
 			}
+
 			cp.Send(&Message{
 				Data:      strings.TrimSuffix(line, "\n"),
 				Container: container,
@@ -95,10 +99,9 @@ func NewContainerPump(storage *Storage, container *Container, stdout, stderr io.
 				Source:    source,
 			})
 		}
-		cp.wg.Done()
 	}
 
-	go pump("stdout", stdout)
-	go pump("stderr", stderr)
+	go pump("stdout", cp.outrd)
+	go pump("stderr", cp.errrd)
 	return cp
 }

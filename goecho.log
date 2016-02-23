@@ -1,0 +1,14 @@
+2016/02/23 19:54:54 Start TCP echo...
+2016/02/23 19:54:54 Start TCP Succeed.
+2016/02/23 19:54:54 Start UDP echo...
+2016/02/23 19:54:54 Start UDP Succeed.
+2016/02/23 19:55:35 [TCP] New TCP client: -> 127.0.0.1:46203
+2016/02/23 19:56:05 [TCPERR] conn.Read:  read tcp4 127.0.0.1:9999->127.0.0.1:46203: i/o timeout
+2016/02/23 19:56:05 [TCP] TCP Client Close: <- 127.0.0.1:46203
+2016/02/23 20:17:00 [TCP] New TCP client: -> 127.0.0.1:46346
+2016/02/23 20:17:30 [TCPERR] conn.Read:  read tcp4 127.0.0.1:9999->127.0.0.1:46346: i/o timeout
+2016/02/23 20:17:30 [TCP] TCP Client Close: <- 127.0.0.1:46346
+2016/02/23 20:20:32 [TCP] New TCP client: -> 127.0.0.1:46368
+2016/02/23 20:21:02 [TCPERR] conn.Read:  read tcp4 127.0.0.1:9999->127.0.0.1:46368: i/o timeout
+2016/02/23 20:21:02 [TCP] TCP Client Close: <- 127.0.0.1:46368
+2016/02/23 20:35:31 [TCP] New TCP client: -> 127.0.0.1:46464
