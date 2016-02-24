@@ -13,7 +13,7 @@ var (
 )
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
+	logger.Level = logrus.DebugLevel
 
 	app := cli.NewApp()
 	app.Name = "splunk-pump"

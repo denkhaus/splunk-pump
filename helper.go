@@ -1,9 +1,6 @@
 package main
 
-import (
-	"log"
-	"os"
-)
+import "os"
 
 func getopt(name, dfault string) string {
 	value := os.Getenv(name)
@@ -32,12 +29,6 @@ func BytesToInt64(buffer []byte) int64 {
 		v = v<<8 + int64(buffer[i])
 	}
 	return v
-}
-
-func debug(v ...interface{}) {
-	//if os.Getenv("DEBUG") != "" {
-	log.Println(v...)
-	//}
 }
 
 func normalName(name string) string {
