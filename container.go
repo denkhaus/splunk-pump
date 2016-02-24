@@ -10,12 +10,12 @@ type Container docker.Container
 
 func (p *Container) CanPump() bool {
 	if p.Config.Tty {
-		logger.Debug("container", p.Id(), "ignored: tty enabled")
+		logger.Debug("container", p.Id(), " ignored: tty enabled")
 		return false
 	}
 
 	if p.IsIgnored() {
-		logger.Debug("container", p.Id(), "ignored: environ ignore")
+		logger.Debug("container ", p.Id(), " ignored: environ ignore")
 		return false
 	}
 

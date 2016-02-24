@@ -60,7 +60,7 @@ func (p *LogsPump) RegisterAdapter(createFn AdapterCreateFn, host string) {
 	p.adapters[host] = createFn
 }
 
-func (p *LogsPump) ensureContainerPump(container *Container) *ContainerPump {
+func (p *LogsPump) ensureContainerPump(container *Container) (*ContainerPump, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -74,8 +74,7 @@ func (p *LogsPump) ensureContainerPump(container *Container) *ContainerPump {
 		for host, fnc := range p.adapters {
 			ad, err := fnc(host)
 			if err != nil {
-				logger.Errorf("create new adapter: %s", err)
-				continue
+				return nil, errors.Annotate(err, "create new adapter")
 			}
 
 			logger.Infof("new adapter %s created", ad)
@@ -85,7 +84,7 @@ func (p *LogsPump) ensureContainerPump(container *Container) *ContainerPump {
 		pump.AddAdapters(adapters...)
 		p.pumps[id] = pump
 	}
-	return pump
+	return pump, nil
 }
 
 func (p *LogsPump) removeContainerPump(id string) {
@@ -110,7 +109,11 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 		return
 	}
 
-	pump := p.ensureContainerPump(container)
+	pump, err := p.ensureContainerPump(container)
+	if err != nil {
+		logger.Errorf("ensure container pump for id %s: %s", container.Id(), err)
+		return
+	}
 
 	go func() {
 		defer p.removeContainerPump(id)
