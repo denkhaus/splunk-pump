@@ -22,7 +22,7 @@ func main() {
 		cli.StringFlag{
 			Name:   "host, d",
 			Usage:  "splunk host to push messages to",
-			EnvVar: "SPLUNK_HOST",
+			EnvVar: "SP_SPLUNK_HOST",
 		},
 	}
 
