@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/djherbis/stow"
+	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/djherbis/stow"
 )
 
 type Storage struct {
@@ -17,10 +18,19 @@ func NewStorage(dbPath string) *Storage {
 	return st
 }
 
-func (p *Storage) Put(msg Message) error {
-	var key []byte
-	Int64ToBytes(msg.Time.UnixNano(), key)
-	return p.store.Put(key, msg)
+func (p *Storage) GetLastLogTS(containerId string) (int64, error) {
+	var timeStamp int64
+	err := p.store.Get(containerId, &timeStamp)
+	if err == stow.ErrNotFound {
+		return time.Now().Add(-24 * time.Hour).Unix(), nil
+	}
+
+	return timeStamp, nil
+}
+
+func (p *Storage) PutLastLogTS(containerId string, timeStamp int64) error {
+	err := p.store.Put(containerId, timeStamp)
+	return err
 }
 
 func (p *Storage) Open() error {
@@ -29,7 +39,7 @@ func (p *Storage) Open() error {
 		return err
 	}
 	p.db = db
-	p.store = stow.NewJSONStore(db, []byte("messages"))
+	p.store = stow.NewJSONStore(db, []byte("container:logs:ts"))
 	return nil
 }
 

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 
@@ -10,6 +13,10 @@ import (
 
 var (
 	logger = logrus.New()
+)
+
+const (
+	storagePath = "/opt/splunkpump.db"
 )
 
 func main() {
@@ -32,10 +39,28 @@ func main() {
 			cli.ShowAppHelp(ctx)
 			return
 		}
+		shutdown := make(chan int)
 
-		logsPump := NewLogsPump()
+		//create a notification channel to shutdown
+		sigChan := make(chan os.Signal, 1)
+		logsPump := NewLogsPump(storagePath)
 		logsPump.RegisterAdapter(NewSplunkAdapter, host)
-		logger.Fatal(logsPump.Run())
+
+		go func() {
+			logger.Fatal(logsPump.Run())
+			shutdown <- 1
+		}()
+	https: //github.com/xlab/closer/blob/master/cmd/example-error/main.go
+		//register for interupt (Ctrl+C) and SIGTERM (docker)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-sigChan
+			fmt.Println("Shutting down...")
+			logsPump.Close()
+		}()
+
+		<-shutdown
+
 	}
 
 	app.Run(os.Args)

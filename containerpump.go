@@ -57,6 +57,16 @@ func (cp *ContainerPump) AddAdapters(adapters ...Adapter) {
 func (cp *ContainerPump) Send(msg *Message) {
 	cp.Lock()
 	defer cp.Unlock()
+	
+	id :=msg.Container.Id() 
+	
+	go func (){
+	if err := cp.storage.PutLastLogTS(id, msg.Time.Unix()); err!= nil{
+		logger.Errorf("unable to store last log ts for %s", id)
+	}			
+	}()
+	
+	
 	for _, ch := range cp.adapters {
 		ch <- msg
 	}
@@ -88,15 +98,23 @@ func NewContainerPump(storage *Storage, container *Container) *ContainerPump {
 			line, err := buf.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
-					logger.Errorf("readstring:", container.Id(), source+":", err)
+					logger.Error("readstring: ", container.Id(), source+":", err)
 				}
 				return
 			}
 
+			tsString := line[:30]
+ 			tm, err := time.Parse(time.RFC3339Nano, tsString)			
+			if err != nil{
+				logger.Errorf("unable to parse timestamp %q for container %s: %s", 
+				tsString, container.Id(), err)
+				return
+			}
+			
 			cp.Send(&Message{
 				Data:      strings.TrimSuffix(line, "\n"),
 				Container: container,
-				Time:      time.Now(),
+				Time:      tm,
 				Source:    source,
 			})
 		}

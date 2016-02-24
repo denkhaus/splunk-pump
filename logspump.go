@@ -17,6 +17,10 @@ type LogsPump struct {
 }
 
 func (p *LogsPump) Run() error {
+	if err := p.storage.Open(); err != nil {
+		return errors.Annotate(err, "open storage")
+	}
+
 	client, err := docker.NewClient(getopt("DOCKER_HOST", "unix:///var/run/docker.sock"))
 	if err != nil {
 		return errors.Annotate(err, "new docker client")
@@ -72,7 +76,7 @@ func (p *LogsPump) ensureContainerPump(container *Container) (*ContainerPump, er
 
 		adapters := []Adapter{}
 		for host, fnc := range p.adapters {
-			ad, err := retry(func()(interface{},error){return fnc(host)},10)
+			ad, err := retry(func() (interface{}, error) { return fnc(host) }, 10)
 			if err != nil {
 				return nil, errors.Annotate(err, "create new adapter")
 			}
@@ -104,21 +108,27 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 		logrus.Fatal(errors.Annotate(err, "inspect container"))
 	}
 
-	container := (*Container)(c)
-	if !container.CanPump() {
+	cnt := (*Container)(c)
+	if !cnt.CanPump() {
 		return
 	}
 
-	pump, err := p.ensureContainerPump(container)
+	pump, err := p.ensureContainerPump(cnt)
 	if err != nil {
-		logger.Errorf("ensure container pump for id %s: %s", container.Id(), err)
+		logger.Errorf("ensure container pump for id %s: %s", cnt.Id(), err)
 		return
 	}
 
 	go func() {
 		defer p.removeContainerPump(id)
-		logger.Infof("started log feed for id %s", container.Id())
-		err := p.client.Logs(docker.LogsOptions{
+		since, err := p.storage.GetLastLogTS(cnt.Id())
+		if err != nil {
+			logger.Errorf("unable to get last log ts for %s: %s", cnt.Id(), err)
+			return
+		}
+
+		logger.Infof("started log feed for id %s since timestamp %d", cnt.Id(), since)
+		err = p.client.Logs(docker.LogsOptions{
 			Container:    id,
 			OutputStream: pump.outwr,
 			ErrorStream:  pump.errwr,
@@ -126,19 +136,22 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 			Stderr:       true,
 			Follow:       true,
 			Tail:         tail,
+			Timestamps:   true,
+			Since:        since,
 		})
 		if err != nil {
-			logger.Errorf("terminated log feed for id %s with error %s", container.Id(), err)
+			logger.Errorf("terminated log feed for id %s: %s", cnt.Id(), err)
 		} else {
-			logger.Infof("stopped log feed for id %s", container.Id())
+			logger.Infof("stopped log feed for id %s", cnt.Id())
 		}
 	}()
 }
 
-func NewLogsPump() *LogsPump {
+func NewLogsPump(storagePath string) *LogsPump {
 	pump := &LogsPump{
 		pumps:    make(map[string]*ContainerPump),
 		adapters: make(map[string]AdapterCreateFn),
+		storage:  NewStorage(storagePath),
 	}
 	return pump
 }

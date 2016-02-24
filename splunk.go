@@ -95,7 +95,7 @@ func (p *SplunkAdapter) writeData(b []byte) {
 			return
 		}
 
-		logger.Infof("Wrote %v...", string(b))
+		//logger.Infof("Wrote %v...", string(b))
 		b = b[bytesWritten:]
 
 		if len(b) == 0 {

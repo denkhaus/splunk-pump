@@ -10,7 +10,7 @@ type Container docker.Container
 
 func (p *Container) CanPump() bool {
 	if p.Config.Tty {
-		logger.Debug("container", p.Id(), " ignored: tty enabled")
+		logger.Debug("container ", p.Id(), " ignored: tty enabled")
 		return false
 	}
 
@@ -29,7 +29,7 @@ func (p *Container) Id() string {
 func (p *Container) IsIgnored() bool {
 	for _, kv := range p.Config.Env {
 		kvp := strings.SplitN(kv, "=", 2)
-		if len(kvp) == 2 && kvp[0] == "LOGSPOUT" && strings.ToLower(kvp[1]) == "ignore" {
+		if len(kvp) == 2 && kvp[0] == "SPLUNKPUMP" && strings.ToLower(kvp[1]) == "ignore" {
 			return true
 		}
 	}
