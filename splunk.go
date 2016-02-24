@@ -1,9 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"time"
+
+	"github.com/juju/errors"
 )
 
 type SplunkAdapter struct {
@@ -15,12 +16,12 @@ type SplunkAdapter struct {
 
 func NewSplunkAdapter(addrStr string) (Adapter, error) {
 	if len(addrStr) == 0 {
-		return nil, fmt.Errorf("Address missing")
+		return nil, errors.New("Splunk: address missing")
 	}
 
 	address, err := net.ResolveTCPAddr("tcp", addrStr)
 	if err != nil {
-		return nil, err
+		return nil, errors.Annotate(err, "splunk resolve address")
 	}
 
 	queue := make(chan *Message, 1024)
@@ -33,7 +34,7 @@ func NewSplunkAdapter(addrStr string) (Adapter, error) {
 	}
 
 	if err = adapter.connect(); err != nil {
-		return nil, err
+		return nil, errors.Annotate(err, "splunk connect")
 	}
 
 	go adapter.writer()
@@ -43,11 +44,11 @@ func NewSplunkAdapter(addrStr string) (Adapter, error) {
 func (p *SplunkAdapter) connect() error {
 	connection, err := net.DialTCP("tcp", nil, p.address)
 	if err != nil {
-		return err
+		return errors.Annotate(err, "splunk dialtcp")
 	}
 
 	if err = connection.SetKeepAlive(true); err != nil {
-		return err
+		return errors.Annotate(err, "splunk set keep alive")
 	}
 
 	p.connection = connection
@@ -79,7 +80,7 @@ func (p *SplunkAdapter) reconnectLoop() {
 			break
 		}
 
-		fmt.Printf("Splunk reconnect failed: %s\n", err)
+		logger.Errorf("Splunk reconnect failed: %s\n", err)
 		time.Sleep(1 * time.Second)
 	}
 }
@@ -89,12 +90,12 @@ func (p *SplunkAdapter) writeData(b []byte) {
 		bytesWritten, err := p.connection.Write(b)
 
 		if err != nil {
-			fmt.Printf("Failed to write to TCP connection: %s\n", err)
+			logger.Errorf("Failed to write to TCP connection: %s\n", err)
 			p.reconnectLoop()
 			return
 		}
 
-		fmt.Printf("Wrote %v...", string(b))
+		logger.Infof("Wrote %v...", string(b))
 		b = b[bytesWritten:]
 
 		if len(b) == 0 {
@@ -118,7 +119,7 @@ func (p *SplunkAdapter) Stream(stream chan *Message) {
 		select {
 		case p.queue <- message:
 		default:
-			fmt.Printf("Channel is full! Dropping events :-(")
+			logger.Warning("Channel is full! Dropping events :-(")
 			continue
 		}
 	}

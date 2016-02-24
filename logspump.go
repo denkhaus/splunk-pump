@@ -11,7 +11,7 @@ import (
 type LogsPump struct {
 	sync.Mutex
 	pumps    map[string]*ContainerPump
-	adapters map[string]Adapter
+	adapters map[string]AdapterCreateFn
 	client   *docker.Client
 	storage  *Storage
 }
@@ -48,19 +48,16 @@ func (p *LogsPump) Run() error {
 		switch event.Status {
 		case "start", "restart":
 			go p.pumpLogs(event, "all")
-		case "die":
-
 		}
 	}
 
 	return errors.New("docker event stream closed")
 }
 
-func (p *LogsPump) RegisterAdapter(adapter Adapter) {
+func (p *LogsPump) RegisterAdapter(createFn AdapterCreateFn, host string) {
 	p.Lock()
 	defer p.Unlock()
-	logger.Infof("register adapter %s", adapter)
-	p.adapters[adapter.String()] = adapter
+	p.adapters[host] = createFn
 }
 
 func (p *LogsPump) ensureContainerPump(container *Container) *ContainerPump {
@@ -70,11 +67,18 @@ func (p *LogsPump) ensureContainerPump(container *Container) *ContainerPump {
 	id := container.ID
 	pump, ok := p.pumps[id]
 	if !ok {
-		logger.Infof("create container pump for id %s", normalID(id))
+		logger.Infof("create container pump for id %s", container.Id())
 		pump = NewContainerPump(p.storage, container)
 
 		adapters := []Adapter{}
-		for _, ad := range p.adapters {
+		for host, fnc := range p.adapters {
+			ad, err := fnc(host)
+			if err != nil {
+				logger.Errorf("create new adapter: %s", err)
+				continue
+			}
+
+			logger.Infof("new adapter %s created", ad)
 			adapters = append(adapters, ad)
 		}
 
@@ -121,17 +125,17 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 			Tail:         tail,
 		})
 		if err != nil {
-			logger.Errorf("terminated log feed for id %s with error %s", id, err)
-		}else{
+			logger.Errorf("terminated log feed for id %s with error %s", container.Id(), err)
+		} else {
 			logger.Infof("stopped log feed for id %s", container.Id())
-		}		
+		}
 	}()
 }
 
-func NewLogsPump(storagePath string) *LogsPump {
+func NewLogsPump() *LogsPump {
 	pump := &LogsPump{
 		pumps:    make(map[string]*ContainerPump),
-		adapters: make(map[string]Adapter),
+		adapters: make(map[string]AdapterCreateFn),
 	}
 	return pump
 }

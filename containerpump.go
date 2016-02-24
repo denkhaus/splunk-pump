@@ -6,8 +6,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 type ContainerPump struct {
@@ -26,14 +24,17 @@ func (cp *ContainerPump) Close() {
 	cp.outwr.Close()
 	cp.errwr.Close()
 	cp.wg.Wait()
+	cp.removeAdapters()
+	logger.Infof("closed container pump for container %s", cp.container.Id())
+}
 
+func (cp *ContainerPump) removeAdapters() {
 	cp.Lock()
 	defer cp.Unlock()
 	for ad, ch := range cp.adapters {
 		close(ch)
 		delete(cp.adapters, ad)
 	}
-	logger.Infof("closed container pump for container %s", cp.container.Id())
 }
 
 func (cp *ContainerPump) AddAdapters(adapters ...Adapter) {
@@ -47,18 +48,18 @@ func (cp *ContainerPump) AddAdapters(adapters ...Adapter) {
 			}
 		}
 
-		cp.adapters[adapter] = make(chan *Message)
+		ch := make(chan *Message)
+		cp.adapters[adapter] = ch
+		go adapter.Stream(ch)
 	}
 }
 
 func (cp *ContainerPump) Send(msg *Message) {
 	cp.Lock()
 	defer cp.Unlock()
-
-	spew.Dump(msg.Data)
-	//for _, ch := range cp.adapters {
-	//	ch <- msg
-	//}
+	for _, ch := range cp.adapters {
+		ch <- msg
+	}
 }
 
 func NewContainerPump(storage *Storage, container *Container) *ContainerPump {
@@ -73,11 +74,11 @@ func NewContainerPump(storage *Storage, container *Container) *ContainerPump {
 	cp.errrd, cp.errwr = io.Pipe()
 
 	pump := func(source string, input io.Reader) {
-		logger.Infof("start container pump for source %s[%s]", source, container.Id())
+		logger.Debugf("start container pump for source %s[%s]", source, container.Id())
 
 		cp.wg.Add(1)
 		defer func() {
-			logger.Infof("stopped container pump for source %s[%s]", source, container.Id())
+			logger.Debugf("stopped container pump for source %s[%s]", source, container.Id())
 			cp.wg.Done()
 		}()
 

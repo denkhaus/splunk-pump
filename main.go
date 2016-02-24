@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 
-	"github.com/juju/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/codegangsta/cli"
@@ -13,11 +12,9 @@ var (
 	logger = logrus.New()
 )
 
-func init() {
-	logrus.SetLevel(logrus.DebugLevel)
-}
-
 func main() {
+	logrus.SetLevel(logrus.DebugLevel)
+
 	app := cli.NewApp()
 	app.Name = "splunk-pump"
 	app.Usage = "A docker log pump to splunk"
@@ -36,13 +33,8 @@ func main() {
 			return
 		}
 
-		logsPump := NewLogsPump("")
-		splunk, err := NewSplunkAdapter(host)
-		if err != nil {
-			logger.Fatal(errors.Annotate(err, "new splunk adapter"))
-		}
-
-		logsPump.RegisterAdapter(splunk)
+		logsPump := NewLogsPump()
+		logsPump.RegisterAdapter(NewSplunkAdapter, host)
 		logger.Fatal(logsPump.Run())
 	}
 

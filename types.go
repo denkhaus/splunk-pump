@@ -15,3 +15,5 @@ type Adapter interface {
 	Stream(stream chan *Message)
 	String() string
 }
+
+type AdapterCreateFn func(addrStr string) (Adapter, error)
