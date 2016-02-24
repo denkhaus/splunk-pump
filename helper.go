@@ -1,6 +1,10 @@
 package main
 
-import "os"
+import (
+	"log"
+	"os"
+	"time"
+)
 
 func getopt(name, dfault string) string {
 	value := os.Getenv(name)
@@ -21,6 +25,21 @@ func Int64ToBytes(value int64, buffer []byte) {
 	}
 }
 
+func retry(fn func() (interface{}, error), cnt int) (res interface{}, err error) {
+	ret := 1
+	for ret <= cnt {
+		if res, err = fn(); err == nil {
+			return
+		}
+		
+		logger.Debugf("retry wait %d secs", ret)
+		time.Sleep(time.Duration(ret) * time.Second)
+		ret++
+	}
+
+	return
+}
+
 func BytesToInt64(buffer []byte) int64 {
 	var v int64
 
@@ -29,6 +48,12 @@ func BytesToInt64(buffer []byte) int64 {
 		v = v<<8 + int64(buffer[i])
 	}
 	return v
+}
+
+func debug(v ...interface{}) {
+	//if os.Getenv("DEBUG") != "" {
+	log.Println(v...)
+	//}
 }
 
 func normalName(name string) string {

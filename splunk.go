@@ -16,7 +16,7 @@ type SplunkAdapter struct {
 
 func NewSplunkAdapter(addrStr string) (Adapter, error) {
 	if len(addrStr) == 0 {
-		return nil, errors.New("Splunk: address missing")
+		return nil, errors.New("splunk: address missing")
 	}
 
 	address, err := net.ResolveTCPAddr("tcp", addrStr)
