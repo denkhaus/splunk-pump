@@ -17,15 +17,15 @@ type LogsPump struct {
 }
 
 func (p *LogsPump) Run() error {
-	if err := p.storage.Open(); err != nil {
-		return errors.Annotate(err, "open storage")
-	}
-
 	client, err := docker.NewClient(getopt("DOCKER_HOST", "unix:///var/run/docker.sock"))
 	if err != nil {
 		return errors.Annotate(err, "new docker client")
 	}
 	p.client = client
+
+	if err := p.storage.Open(); err != nil {
+		return errors.Annotate(err, "open storage")
+	}
 
 	containers, err := p.client.ListContainers(docker.ListContainersOptions{})
 	if err != nil {
@@ -64,6 +64,14 @@ func (p *LogsPump) RegisterAdapter(createFn AdapterCreateFn, host string) {
 	p.adapters[host] = createFn
 }
 
+func (p *LogsPump) Shutdown() {
+	logger.Infof("shutdown received")
+	for id := range p.pumps {
+		p.removeContainerPump(id)
+	}
+	p.storage.Close()
+}
+
 func (p *LogsPump) ensureContainerPump(container *Container) (*ContainerPump, error) {
 	p.Lock()
 	defer p.Unlock()
@@ -76,13 +84,13 @@ func (p *LogsPump) ensureContainerPump(container *Container) (*ContainerPump, er
 
 		adapters := []Adapter{}
 		for host, fnc := range p.adapters {
-			ad, err := retry(func() (interface{}, error) { return fnc(host) }, 10)
+			ad, err := fnc(host)
 			if err != nil {
 				return nil, errors.Annotate(err, "create new adapter")
 			}
 
 			logger.Infof("new adapter %s created", ad)
-			adapters = append(adapters, ad.(Adapter))
+			adapters = append(adapters, ad)
 		}
 
 		pump.AddAdapters(adapters...)
@@ -108,26 +116,26 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 		logrus.Fatal(errors.Annotate(err, "inspect container"))
 	}
 
-	cnt := (*Container)(c)
-	if !cnt.CanPump() {
+	cont := (*Container)(c)
+	if !cont.CanPump() {
 		return
 	}
 
-	pump, err := p.ensureContainerPump(cnt)
+	pump, err := p.ensureContainerPump(cont)
 	if err != nil {
-		logger.Errorf("ensure container pump for id %s: %s", cnt.Id(), err)
+		logger.Errorf("ensure container pump for id %s: %s", cont.Id(), err)
 		return
 	}
 
 	go func() {
 		defer p.removeContainerPump(id)
-		since, err := p.storage.GetLastLogTS(cnt.Id())
+		since, err := p.storage.GetLastLogTS(cont.Id())
 		if err != nil {
-			logger.Errorf("unable to get last log ts for %s: %s", cnt.Id(), err)
+			logger.Errorf("cant get last log ts for id %s: %s", cont.Id(), err)
 			return
 		}
 
-		logger.Infof("started log feed for id %s since timestamp %d", cnt.Id(), since)
+		logger.Infof("started log feed for id %s", cont.Id())
 		err = p.client.Logs(docker.LogsOptions{
 			Container:    id,
 			OutputStream: pump.outwr,
@@ -140,9 +148,9 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 			Since:        since,
 		})
 		if err != nil {
-			logger.Errorf("terminated log feed for id %s: %s", cnt.Id(), err)
+			logger.Errorf("terminated log feed for id %s with error %s", cont.Id(), err)
 		} else {
-			logger.Infof("stopped log feed for id %s", cnt.Id())
+			logger.Infof("stopped log feed for id %s", cont.Id())
 		}
 	}()
 }

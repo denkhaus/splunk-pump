@@ -34,6 +34,7 @@ func (p *Storage) PutLastLogTS(containerId string, timeStamp int64) error {
 }
 
 func (p *Storage) Open() error {
+	logger.Debug("open storage")
 	db, err := bolt.Open(p.dbPath, 0600, nil)
 	if err != nil {
 		return err
@@ -45,6 +46,7 @@ func (p *Storage) Open() error {
 
 func (p *Storage) Close() error {
 	if p.db != nil {
+		logger.Debug("close storage")
 		err := p.db.Close()
 		p.db = nil
 		return err
