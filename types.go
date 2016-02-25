@@ -4,11 +4,10 @@ import "time"
 
 // Messages are log messages
 type Message struct {
-	Container   *Container
-	ContainerID string
-	Source      string
-	Data        string
-	Time        time.Time
+	Container *Container
+	Source    string
+	Data      string
+	Time      time.Time
 }
 
 type Adapter interface {

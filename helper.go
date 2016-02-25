@@ -24,14 +24,14 @@ func Int64ToBytes(value int64, buffer []byte) {
 	}
 }
 
-func retry(fn func() (interface{}, error), cnt int) (res interface{}, err error) {
+func retry(fn func() (interface{}, error), cnt int, msg string) (res interface{}, err error) {
 	ret := 1
 	for ret <= cnt {
 		if res, err = fn(); err == nil {
 			return
 		}
 
-		logger.Debugf("retry wait %d secs", ret)
+		logger.Debugf("retry [%s] wait %d secs", msg, ret)
 		time.Sleep(time.Duration(ret) * time.Second)
 		ret++
 	}

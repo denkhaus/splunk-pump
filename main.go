@@ -45,6 +45,7 @@ func main() {
 		})
 
 		closer.Checked(func() error {
+			logger.Info("startup ---------------------------------------------")
 			logsPump.RegisterAdapter(NewSplunkAdapter, host)
 			return logsPump.Run()
 		}, true)

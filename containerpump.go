@@ -70,9 +70,9 @@ func (cp *ContainerPump) Send(msg *Message) {
 	}()
 }
 
-func NewContainerPump(storage *Storage, container *Container) *ContainerPump {
+func NewContainerPump(storage *Storage, cont *Container) *ContainerPump {
 	cp := &ContainerPump{
-		container: container,
+		container: cont,
 		storage:   storage,
 		adapters:  make(map[Adapter]chan *Message),
 		wg:        &sync.WaitGroup{},
@@ -82,11 +82,11 @@ func NewContainerPump(storage *Storage, container *Container) *ContainerPump {
 	cp.errrd, cp.errwr = io.Pipe()
 
 	pump := func(source string, input io.Reader) {
-		logger.Debugf("start container pump for source %s[%s]", source, container.Id())
+		logger.Debugf("start container pump for source %s[%s]", source, cont)
 
 		cp.wg.Add(1)
 		defer func() {
-			logger.Debugf("stopped container pump for source %s[%s]", source, container.Id())
+			logger.Debugf("stopped container pump for source %s[%s]", source, cont)
 			cp.wg.Done()
 		}()
 
@@ -96,7 +96,7 @@ func NewContainerPump(storage *Storage, container *Container) *ContainerPump {
 			line, err := buf.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
-					logger.Error("readstring: ", container.Id(), source+":", err)
+					logger.Error("readstring: ", cont.Id(), source+":", err)
 				}
 				return
 			}
@@ -105,13 +105,13 @@ func NewContainerPump(storage *Storage, container *Container) *ContainerPump {
 			tm, err := time.Parse(time.RFC3339Nano, tsString)
 			if err != nil {
 				logger.Errorf("unable to parse timestamp %q for container %s: %s",
-					tsString, container.Id(), err)
+					tsString, cont, err)
 				return
 			}
 
 			cp.Send(&Message{
-				Data:      strings.TrimSuffix(line, "\n"),
-				Container: container,
+				Data:      strings.TrimSuffix(line[30:], "\n"),
+				Container: cont,
 				Time:      tm,
 				Source:    source,
 			})

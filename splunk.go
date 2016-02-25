@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/juju/errors"
@@ -12,6 +15,23 @@ type SplunkAdapter struct {
 	connection *net.TCPConn
 	queue      chan *Message
 	done       chan bool
+	hostName   string
+}
+
+type splunkMessage struct {
+	Event      splunkMessageEvent `json:"event"`
+	Time       string             `json:"time"`
+	Host       string             `json:"host"`
+	Source     string             `json:"source,omitempty"`
+	SourceType string             `json:"sourcetype,omitempty"`
+	Index      string             `json:"index,omitempty"`
+}
+
+type splunkMessageEvent struct {
+	Line   string            `json:"line"`
+	Source string            `json:"source"`
+	Tag    string            `json:"tag,omitempty"`
+	Attrs  map[string]string `json:"attrs,omitempty"`
 }
 
 func NewSplunkAdapter(addrStr string) (Adapter, error) {
@@ -24,13 +44,19 @@ func NewSplunkAdapter(addrStr string) (Adapter, error) {
 		return nil, errors.Annotate(err, "splunk resolve address")
 	}
 
+	hostName, err := os.Hostname()
+	if err != nil {
+		return nil, errors.Annotate(err, "get hostname")
+	}
+
 	queue := make(chan *Message, 1024)
 	done := make(chan bool, 1)
 
 	adapter := &SplunkAdapter{
-		address: address,
-		queue:   queue,
-		done:    done,
+		address:  address,
+		queue:    queue,
+		done:     done,
+		hostName: hostName,
 	}
 
 	if err = adapter.connect(); err != nil {
@@ -97,7 +123,6 @@ func (p *SplunkAdapter) writeData(b []byte) {
 
 		//logger.Infof("Wrote %v...", string(b))
 		b = b[bytesWritten:]
-
 		if len(b) == 0 {
 			break
 		}
@@ -105,13 +130,41 @@ func (p *SplunkAdapter) writeData(b []byte) {
 }
 
 func (p *SplunkAdapter) writer() {
-	for message := range p.queue {
-		p.writeData([]byte(message.Data + "\n"))
+	for msg := range p.queue {
+		buf, err := p.buildMessage(msg)
+		if err != nil {
+			logger.Error(errors.Annotate(err, "build message"))
+			return
+		}
+		p.writeData(buf)
 	}
 }
 
 func (p *SplunkAdapter) String() string {
 	return "splunk"
+}
+
+func (p *SplunkAdapter) buildMessage(m *Message) ([]byte, error) {
+	var msg = splunkMessage{
+		Host:   p.hostName,
+		Source: "splunk-pump",
+		Time:   fmt.Sprintf("%f", float64(m.Time.UnixNano())/1000000000),
+	}
+
+	msg.Event.Line = m.Data
+	msg.Event.Source = m.Source
+	msg.Event.Attrs = map[string]string{
+		"ContainerName": m.Container.NormalName(),
+		"ContainerID":   m.Container.Id(),
+	}
+
+	buf, err := json.Marshal(&msg)
+	if err != nil {
+		return nil, errors.Annotate(err, "marshal")
+	}
+
+	return buf, nil
+
 }
 
 func (p *SplunkAdapter) Stream(stream chan *Message) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/fsouza/go-dockerclient"
@@ -10,12 +11,12 @@ type Container docker.Container
 
 func (p *Container) CanPump() bool {
 	if p.Config.Tty {
-		logger.Debug("container ", p.Id(), " ignored: tty enabled")
+		logger.Debug("container ", p, " ignored: tty enabled")
 		return false
 	}
 
 	if p.IsIgnored() {
-		logger.Debug("container ", p.Id(), " ignored: environ ignore")
+		logger.Debug("container ", p, " ignored: environ ignore")
 		return false
 	}
 
@@ -24,6 +25,14 @@ func (p *Container) CanPump() bool {
 
 func (p *Container) Id() string {
 	return normalID(p.ID)
+}
+
+func (p *Container) NormalName() string {
+	return normalName(p.Name)
+}
+
+func (p *Container) String() string {
+	return fmt.Sprintf("%s - %s", p.Id(), p.NormalName())
 }
 
 func (p *Container) IsIgnored() bool {

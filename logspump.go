@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"time"
 
 	"github.com/fsouza/go-dockerclient"
 	"github.com/juju/errors"
@@ -72,26 +73,26 @@ func (p *LogsPump) Shutdown() {
 	p.storage.Close()
 }
 
-func (p *LogsPump) ensureContainerPump(container *Container) (*ContainerPump, error) {
+func (p *LogsPump) ensureContainerPump(cont *Container) (*ContainerPump, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	id := container.ID
+	id := cont.ID
 	pump, ok := p.pumps[id]
 	if !ok {
-		logger.Infof("create container pump for id %s", container.Id())
-		pump = NewContainerPump(p.storage, container)
+		logger.Debugf("create container pump for %s", cont)
+		pump = NewContainerPump(p.storage, cont)
 
 		adapters := []Adapter{}
 		for host, fnc := range p.adapters {
 			ad, err := retry(func() (interface{}, error) {
 				return fnc(host)
-			}, 10)
+			}, 10, "create adapter")
 			if err != nil {
 				return nil, errors.Annotate(err, "create new adapter")
 			}
 
-			logger.Infof("new adapter %s created", ad)
+			logger.Debugf("new adapter %s created", ad)
 			adapters = append(adapters, ad.(Adapter))
 		}
 
@@ -107,7 +108,7 @@ func (p *LogsPump) removeContainerPump(id string) {
 	if pump, ok := p.pumps[id]; ok {
 		pump.Close()
 		delete(p.pumps, id)
-		logger.Infof("removed container pump for id %s", normalID(id))
+		logger.Debugf("removed container pump for id %s", normalID(id))
 	}
 }
 
@@ -125,7 +126,7 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 
 	pump, err := p.ensureContainerPump(cont)
 	if err != nil {
-		logger.Errorf("ensure container pump for id %s: %s", cont.Id(), err)
+		logger.Errorf("ensure container pump for %s: %s", cont, err)
 		return
 	}
 
@@ -133,11 +134,12 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 		defer p.removeContainerPump(id)
 		since, err := p.storage.GetLastLogTS(cont.Id())
 		if err != nil {
-			logger.Errorf("cant get last log ts for id %s: %s", cont.Id(), err)
+			logger.Errorf("cant get last log ts for %s: %s", cont, err)
 			return
 		}
 
-		logger.Infof("started log feed for id %s", cont.Id())
+		logger.Infof("started log feed for id %s(%s) at timestamp %d(%s)",
+			cont.Id(), cont.NormalName(), since, time.Unix(since, 0))
 		err = p.client.Logs(docker.LogsOptions{
 			Container:    id,
 			OutputStream: pump.outwr,
@@ -150,9 +152,9 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 			Since:        since,
 		})
 		if err != nil {
-			logger.Errorf("terminated log feed for id %s with error %s", cont.Id(), err)
+			logger.Errorf("terminated log feed for %s with error %s", cont, err)
 		} else {
-			logger.Infof("stopped log feed for id %s", cont.Id())
+			logger.Infof("stopped log feed for %s", cont)
 		}
 	}()
 }
