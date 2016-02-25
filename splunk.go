@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -136,7 +137,7 @@ func (p *SplunkAdapter) writer() {
 			logger.Error(errors.Annotate(err, "build message"))
 			return
 		}
-		p.writeData(buf)
+		p.writeData(buf.Bytes())
 	}
 }
 
@@ -144,7 +145,7 @@ func (p *SplunkAdapter) String() string {
 	return "splunk"
 }
 
-func (p *SplunkAdapter) buildMessage(m *Message) ([]byte, error) {
+func (p *SplunkAdapter) buildMessage(m *Message) (*bytes.Buffer, error) {
 	var msg = splunkMessage{
 		Host:   p.hostName,
 		Source: "splunk-pump",
@@ -158,11 +159,13 @@ func (p *SplunkAdapter) buildMessage(m *Message) ([]byte, error) {
 		"ContainerID":   m.Container.Id(),
 	}
 
-	buf, err := json.Marshal(&msg)
+	data, err := json.Marshal(&msg)
 	if err != nil {
 		return nil, errors.Annotate(err, "marshal")
 	}
 
+	buf := bytes.NewBuffer(data)
+	buf.WriteString("\n")
 	return buf, nil
 
 }
