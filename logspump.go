@@ -84,13 +84,15 @@ func (p *LogsPump) ensureContainerPump(container *Container) (*ContainerPump, er
 
 		adapters := []Adapter{}
 		for host, fnc := range p.adapters {
-			ad, err := fnc(host)
+			ad, err := retry(func() (interface{}, error) {
+				return fnc(host)
+			}, 10)
 			if err != nil {
 				return nil, errors.Annotate(err, "create new adapter")
 			}
 
 			logger.Infof("new adapter %s created", ad)
-			adapters = append(adapters, ad)
+			adapters = append(adapters, ad.(Adapter))
 		}
 
 		pump.AddAdapters(adapters...)
