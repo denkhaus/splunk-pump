@@ -32,6 +32,10 @@ func TestStorage(t *testing.T) {
 		t.Error("Expected %d, got %d", testTS, ts)
 	}
 
+	if err := storage.Stats(); err != nil {
+		t.Error(errors.Annotate(err, "print stats"))
+	}
+
 	if err := storage.Close(); err != nil {
 		t.Error(errors.Annotate(err, "close storage"))
 	}

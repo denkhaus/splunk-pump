@@ -37,8 +37,13 @@ func (p *Storage) PutLastLogTS(containerId string, timeStamp int64) error {
 func (p *Storage) Stats() error {
 	logger.Info("------------------------------------------------------------")
 	logger.Infof("storage stats - timestamps")
-	err := p.store.ForEach(func(k, v interface{}) {
-		logger.Infof("id: %v | ts: %v", k, v)
+	err := p.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("ts"))
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			logger.Infof("id: %s | ts: %s", k, v)
+		}
+		return nil
 	})
 	logger.Info("------------------------------------------------------------")
 	return err
@@ -51,7 +56,7 @@ func (p *Storage) Open() error {
 		return err
 	}
 	p.db = db
-	p.store = stow.NewJSONStore(db, []byte("container:logs:ts"))
+	p.store = stow.NewJSONStore(db, []byte("ts"))
 	return nil
 }
 
