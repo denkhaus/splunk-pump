@@ -28,6 +28,10 @@ func (p *LogsPump) Run() error {
 		return errors.Annotate(err, "open storage")
 	}
 
+	if err := p.storage.Stats(); err != nil {
+		return errors.Annotate(err, "print stats")
+	}
+
 	containers, err := p.client.ListContainers(docker.ListContainersOptions{})
 	if err != nil {
 		return errors.Annotate(err, "list containers")

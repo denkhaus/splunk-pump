@@ -34,6 +34,16 @@ func (p *Storage) PutLastLogTS(containerId string, timeStamp int64) error {
 	return err
 }
 
+func (p *Storage) Stats() error {
+	logger.Info("------------------------------------------------------------")
+	logger.Infof("storage stats - timestamps")
+	err := p.store.ForEach(func(k, v interface{}) {
+		logger.Infof("id: %v | ts: %v", k, v)
+	})
+	logger.Info("------------------------------------------------------------")
+	return err
+}
+
 func (p *Storage) Open() error {
 	logger.Debug("open storage")
 	db, err := bolt.Open(p.dbPath, 0600, nil)
