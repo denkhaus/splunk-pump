@@ -19,12 +19,12 @@ type SplunkAdapter struct {
 }
 
 type SplunkMessage struct {
-	Time          time.Time `json:"time"`
-	Host          string    `json:"host"`
-	Source        string    `json:"source"`
-	ContainerName string    `json:"containerName"`
-	ContainerID   string    `json:"containerID"`
-	Line          string    `json:"line"`
+	Time            time.Time `json:"time"`
+	ContainerHost   string    `json:"containerHost"`
+	ContainerSource string    `json:"containerSource"`
+	ContainerName   string    `json:"containerName"`
+	ContainerID     string    `json:"containerID"`
+	Line            string    `json:"line"`
 }
 
 func NewSplunkAdapter(addrStr string) (Adapter, error) {
@@ -139,12 +139,12 @@ func (p *SplunkAdapter) String() string {
 
 func (p *SplunkAdapter) buildMessage(m *Message) (*bytes.Buffer, error) {
 	var msg = SplunkMessage{
-		Host:          p.hostName,
-		Source:        m.Source,
-		ContainerName: m.Container.NormalName(),
-		ContainerID:   m.Container.Id(),
-		Time:          m.Time,
-		Line:          m.Data,
+		Time:            m.Time,
+		ContainerHost:   p.hostName,
+		ContainerSource: m.Source,
+		ContainerName:   m.Container.NormalName(),
+		ContainerID:     m.Container.Id(),
+		Line:            m.Data,
 	}
 
 	data, err := json.Marshal(&msg)

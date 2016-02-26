@@ -138,8 +138,10 @@ func (p *LogsPump) pumpLogs(event *docker.APIEvents, tail string) {
 			return
 		}
 
-		logger.Infof("started log feed for id %s(%s) at timestamp %d(%s)",
-			cont.Id(), cont.NormalName(), since, time.Unix(since, 0))
+		logger.Infof("started log feed for id %s(%s) at %s",
+			cont.Id(), cont.NormalName(),
+			time.Unix(since, 0).Format("02.01.2006 15:04:05"))
+
 		err = p.client.Logs(docker.LogsOptions{
 			Container:    id,
 			OutputStream: pump.outwr,

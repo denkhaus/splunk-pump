@@ -22,6 +22,7 @@ func (p *Storage) GetLastLogTS(containerId string) (int64, error) {
 	var timeStamp int64
 	err := p.store.Get(containerId, &timeStamp)
 	if err == stow.ErrNotFound {
+		logger.Warnf("last log ts for %s not found, use default", containerId)
 		return time.Now().Add(-24 * time.Hour).Unix(), nil
 	}
 

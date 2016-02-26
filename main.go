@@ -9,15 +9,20 @@ import (
 )
 
 var (
-	logger = logrus.New()
+	logger *logrus.Logger
 )
 
 const (
 	storagePath = "/opt/splunkpump.db"
 )
 
-func main() {
+func init() {
+	logger := logrus.New()
 	logger.Level = logrus.DebugLevel
+	logger.Out = os.Stdout
+}
+
+func main() {
 
 	app := cli.NewApp()
 	app.Name = "splunk-pump"
