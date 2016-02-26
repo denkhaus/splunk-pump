@@ -23,7 +23,8 @@ func (p *Storage) GetLastLogTS(containerId string) (int64, error) {
 	err := p.store.Get(containerId, &timeStamp)
 	if err == stow.ErrNotFound {
 		logger.Warnf("last log ts for %s not found, use default", containerId)
-		return time.Now().Add(-24 * time.Hour).Unix(), nil
+		ts := time.Now().Add(-24 * time.Hour).Unix()
+		return ts, nil
 	}
 
 	return timeStamp, nil
@@ -35,17 +36,20 @@ func (p *Storage) PutLastLogTS(containerId string, timeStamp int64) error {
 }
 
 func (p *Storage) Stats() error {
-	logger.Info("------------------------------------------------------------")
+	logger.Info("-----------------------------------------------------")
 	logger.Infof("storage stats - timestamps")
 	err := p.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("ts"))
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			logger.Infof("id: %s | ts: %s", k, v)
+		if b != nil {
+			c := b.Cursor()
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				logger.Infof("id: %s | ts: %s", k, v)
+			}
 		}
+
 		return nil
 	})
-	logger.Info("------------------------------------------------------------")
+	logger.Info("-----------------------------------------------------")
 	return err
 }
 
