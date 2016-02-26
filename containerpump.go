@@ -110,7 +110,7 @@ func NewContainerPump(storage *Storage, cont *Container) *ContainerPump {
 			}
 
 			cp.Send(&Message{
-				Data:      strings.TrimSuffix(line[30:], "\n"),
+				Data:      strings.TrimSuffix(line[31:], "\n"),
 				Container: cont,
 				Time:      tm,
 				Source:    source,

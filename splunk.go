@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net"
 	"os"
 	"time"
@@ -19,20 +18,13 @@ type SplunkAdapter struct {
 	hostName   string
 }
 
-type splunkMessage struct {
-	Event      splunkMessageEvent `json:"event"`
-	Time       string             `json:"time"`
-	Host       string             `json:"host"`
-	Source     string             `json:"source,omitempty"`
-	SourceType string             `json:"sourcetype,omitempty"`
-	Index      string             `json:"index,omitempty"`
-}
-
-type splunkMessageEvent struct {
-	Line   string            `json:"line"`
-	Source string            `json:"source"`
-	Tag    string            `json:"tag,omitempty"`
-	Attrs  map[string]string `json:"attrs,omitempty"`
+type SplunkMessage struct {
+	Time          time.Time `json:"time"`
+	Host          string    `json:"host"`
+	Source        string    `json:"source"`
+	ContainerName string    `json:"containerName"`
+	ContainerID   string    `json:"containerID"`
+	Line          string    `json:"line"`
 }
 
 func NewSplunkAdapter(addrStr string) (Adapter, error) {
@@ -146,17 +138,13 @@ func (p *SplunkAdapter) String() string {
 }
 
 func (p *SplunkAdapter) buildMessage(m *Message) (*bytes.Buffer, error) {
-	var msg = splunkMessage{
-		Host:   p.hostName,
-		Source: "splunk-pump",
-		Time:   fmt.Sprintf("%f", float64(m.Time.UnixNano())/1000000000),
-	}
-
-	msg.Event.Line = m.Data
-	msg.Event.Source = m.Source
-	msg.Event.Attrs = map[string]string{
-		"ContainerName": m.Container.NormalName(),
-		"ContainerID":   m.Container.Id(),
+	var msg = SplunkMessage{
+		Host:          p.hostName,
+		Source:        m.Source,
+		ContainerName: m.Container.NormalName(),
+		ContainerID:   m.Container.Id(),
+		Time:          m.Time,
+		Line:          m.Data,
 	}
 
 	data, err := json.Marshal(&msg)
