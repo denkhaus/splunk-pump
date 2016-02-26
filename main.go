@@ -17,7 +17,7 @@ const (
 )
 
 func init() {
-	logger := logrus.New()
+	logger = logrus.New()
 	logger.Level = logrus.DebugLevel
 	logger.Out = os.Stdout
 }
