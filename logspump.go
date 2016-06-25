@@ -4,9 +4,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/juju/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type LogsPump struct {
