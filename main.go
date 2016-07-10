@@ -35,11 +35,11 @@ func main() {
 		},
 	}
 
-	app.Action = func(ctx *cli.Context) {
+	app.Action = func(ctx *cli.Context) error {
 		host := ctx.GlobalString("host")
 		if host == "" {
 			cli.ShowAppHelp(ctx)
-			return
+			return nil
 		}
 
 		logsPump := NewLogsPump(storagePath)
@@ -56,5 +56,5 @@ func main() {
 		}, true)
 	}
 
-	app.Run(os.Args)
+	return app.Run(os.Args)
 }
