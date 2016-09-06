@@ -107,7 +107,6 @@ func (p *SplunkAdapter) reconnectLoop() {
 func (p *SplunkAdapter) writeData(b []byte) {
 	for {
 		bytesWritten, err := p.connection.Write(b)
-
 		if err != nil {
 			logger.Errorf("Failed to write to TCP connection: %s\n", err)
 			p.reconnectLoop()

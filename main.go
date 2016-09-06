@@ -54,7 +54,9 @@ func main() {
 			logsPump.RegisterAdapter(NewSplunkAdapter, host)
 			return logsPump.Run()
 		}, true)
+
+		return nil
 	}
 
-	return app.Run(os.Args)
+	app.Run(os.Args)
 }
